@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://recovery:recovery@db:5432/recovery
+    volumes: [".:/app"]
+    depends_on: [db]
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: recovery
+      POSTGRES_USER: recovery
+      POSTGRES_PASSWORD: recovery
+    ports: ["5432:5432"]

@@ -1,0 +1,5 @@
+payment_reminder:
+  channel: EMAIL
+  dlt_registered: true
+  subject: "Complete your payment"
+  body: "Your payment of ₹{amount} is pending. Use {payment_link}. Reply STOP to opt out."
