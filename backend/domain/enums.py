@@ -64,3 +64,87 @@ class VerdictType(StrEnum):
     DENY = "DENY"
     DOWNGRADE = "DOWNGRADE"
     REQUIRE_HUMAN = "REQUIRE_HUMAN"
+
+
+class ReasonCode(StrEnum):
+    RULE_FALLBACK = "RULE_FALLBACK"
+    LLM_UNAVAILABLE = "LLM_UNAVAILABLE"
+    LLM_SCHEMA_INVALID = "LLM_SCHEMA_INVALID"
+    LLM_INELIGIBLE_ACTION = "LLM_INELIGIBLE_ACTION"
+    AMBIGUOUS_TAXONOMY = "AMBIGUOUS_TAXONOMY"
+    CUSTOMER_CONTEXT = "CUSTOMER_CONTEXT"
+
+
+class ConsentChannel(StrEnum):
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+
+
+class OrderStatus(StrEnum):
+    CREATED = "CREATED"
+    ATTEMPTED = "ATTEMPTED"
+    PAID = "PAID"
+    EXPIRED = "EXPIRED"
+
+
+class PaymentAttemptStatus(StrEnum):
+    CREATED = "CREATED"
+    AUTHORIZED = "AUTHORIZED"
+    CAPTURED = "CAPTURED"
+    FAILED = "FAILED"
+
+
+class ClassifiedBy(StrEnum):
+    RULE = "RULE"
+    LLM = "LLM"
+    HUMAN = "HUMAN"
+
+
+class DecisionSource(StrEnum):
+    RULE = "RULE"
+    LLM = "LLM"
+
+
+class InitiatedBy(StrEnum):
+    CUSTOMER = "CUSTOMER"
+    RECOVERY_SYSTEM = "RECOVERY_SYSTEM"
+
+
+class RecoveryResolution(StrEnum):
+    RECOVERED = "RECOVERED"
+    EXHAUSTED = "EXHAUSTED"
+    STOPPED = "STOPPED"
+    EXPIRED = "EXPIRED"
+
+
+class RecoveryActionState(StrEnum):
+    SCHEDULED = "SCHEDULED"
+    REVALIDATING = "REVALIDATING"
+    EXECUTING = "EXECUTING"
+    EXECUTED = "EXECUTED"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class ApprovalDecision(StrEnum):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class MessageChannel(StrEnum):
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+
+
+class GeneratedBy(StrEnum):
+    TEMPLATE = "TEMPLATE"
+    LLM = "LLM"
+
+
+class AuditActor(StrEnum):
+    SYSTEM = "SYSTEM"
+    RULE = "RULE"
+    LLM = "LLM"
+    HUMAN = "HUMAN"
+    GATEWAY = "GATEWAY"

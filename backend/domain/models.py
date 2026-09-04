@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from .enums import ActionType, CaseClass, CaseState, ConsentState, FailureCategory
+from .money import require_paise
 
 
 def utcnow() -> datetime:
@@ -24,6 +25,9 @@ class RecoveryCase:
     last_action_at: datetime | None = None
     id: str = field(default_factory=lambda: uuid4().hex)
 
+    def __post_init__(self) -> None:
+        require_paise(self.amount_at_risk_paise, "amount_at_risk_paise")
+
 
 @dataclass(frozen=True, slots=True)
 class Decision:
@@ -42,6 +46,9 @@ class WorldState:
     chargeable: bool = True
     rail_degraded: bool = False
     template_dlt_registered: bool = True
+    channel: str = "EMAIL"
+    sms_consent: ConsentState = ConsentState.UNKNOWN
+    approval_granted: bool = False
 
 
 @dataclass(frozen=True, slots=True)

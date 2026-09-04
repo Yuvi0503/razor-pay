@@ -7,6 +7,7 @@ TRANSITIONS: dict[CaseState, set[CaseState]] = {
     CaseState.DECIDED: {
         CaseState.AWAITING_APPROVAL,
         CaseState.SCHEDULED,
+        CaseState.RECOVERED,
         CaseState.STOPPED,
         CaseState.EXHAUSTED,
     },

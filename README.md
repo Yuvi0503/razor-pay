@@ -19,6 +19,15 @@ cd frontend && npm install && npm run dev
 
 The app is simulator-first. Live Razorpay operations are blocked until their facts are recorded in `docs/razorpay-verified.md`; never infer an endpoint, error code, or regulatory retry rule.
 
+The API uses PostgreSQL for durable state. Docker Compose creates the database and runs
+the Alembic migration before starting the API. For a host-run API, set `DATABASE_URL` in
+`.env` (for the Compose database, use
+`postgresql+psycopg://recovery:recovery@localhost:5432/recovery`) and run:
+
+```bash
+alembic upgrade head
+```
+
 ## What is modelled
 
 - Outcomes, organic recovery, outages, and messages are simulated/rendered.

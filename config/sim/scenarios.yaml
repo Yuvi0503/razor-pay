@@ -1,0 +1,9 @@
+# Scenario generation is deterministic and versioned. The Python generator
+# supplies seeded values while these defaults document the contract.
+version: 1
+classes: [A_MANDATE, B_ONEOFF, C_ABANDONED]
+methods: [upi, card]
+failure_categories: [INSUFFICIENT_FUNDS, TEMPORARY_BANK_ERROR, AUTHENTICATION_FAILED, UNKNOWN]
+amount_paise_options: [99900, 249900, 750000, 1250000]
+organic_probability_range: [0.04, 0.20]
+recovery_probability_range: [0.20, 0.65]

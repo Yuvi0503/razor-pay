@@ -1,13 +1,14 @@
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 
 @dataclass(frozen=True, slots=True)
 class PolicyConfig:
-    values: dict
+    values: dict[str, Any]
     config_hash: str
 
 

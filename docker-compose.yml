@@ -1,12 +1,21 @@
 services:
   api:
     build: .
-    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn backend.api.main:app --host 0.0.0.0 --port 8000"
     ports: ["8000:8000"]
     environment:
       DATABASE_URL: postgresql+psycopg://recovery:recovery@db:5432/recovery
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      RAZORPAY_MERCHANT_ID: ${RAZORPAY_MERCHANT_ID:-merchant}
+      RAZORPAY_ENABLE_ORDER_SWEEPER: ${RAZORPAY_ENABLE_ORDER_SWEEPER:-false}
+      APPROVAL_API_TOKEN: ${APPROVAL_API_TOKEN:-}
+      EVAL_REPORT_PATH: ${EVAL_REPORT_PATH:-}
     volumes: [".:/app"]
-    depends_on: [db]
+    depends_on:
+      db:
+        condition: service_healthy
   db:
     image: postgres:15
     environment:
@@ -14,3 +23,8 @@ services:
       POSTGRES_USER: recovery
       POSTGRES_PASSWORD: recovery
     ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recovery -d recovery"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

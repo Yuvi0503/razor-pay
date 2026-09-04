@@ -43,6 +43,16 @@ def evaluate(
             "contact budget",
         ):
             return PolicyVerdict(VerdictType.DENY, None, tuple(results))
+        if not check(
+            "P11",
+            world.channel in set(cfg.get("approved_contact_channels", ["EMAIL"])),
+            "contact channel is merchant-approved",
+        ):
+            return PolicyVerdict(VerdictType.DENY, None, tuple(results))
+        if world.channel == "SMS" and not check(
+            "P03_SMS", world.sms_consent is ConsentState.OPTED_IN, "SMS requires opt-in"
+        ):
+            return PolicyVerdict(VerdictType.DENY, None, tuple(results))
         local = world.now.astimezone(ZoneInfo("Asia/Kolkata")).time()
         start_h, end_h = (int(v.split(":")[0]) for v in cfg["communication_window_ist"])
         if not check("P07", start_h <= local.hour < end_h, "communication window"):
@@ -57,7 +67,7 @@ def evaluate(
         "cooldown",
     ):
         return PolicyVerdict(VerdictType.DOWNGRADE, ActionType.WAIT, tuple(results))
-    if case.amount_at_risk_paise > cfg["auto_ceiling_paise"]:
+    if case.amount_at_risk_paise > cfg["auto_ceiling_paise"] and not world.approval_granted:
         check("P08", False, "amount requires human approval")
         return PolicyVerdict(VerdictType.REQUIRE_HUMAN, None, tuple(results))
     if spec.consumes_charge_budget and world.rail_degraded:
@@ -69,6 +79,12 @@ def evaluate(
         "P13", world.now - case.opened_at <= timedelta(hours=cfg["max_case_age_hours"]), "case age"
     ):
         return PolicyVerdict(VerdictType.DENY, None, tuple(results))
+    if not check(
+        "P11",
+        spec.reversible or case.amount_at_risk_paise <= cfg["auto_ceiling_paise"] or world.approval_granted,
+        "irreversible action is within automatic ceiling",
+    ):
+        return PolicyVerdict(VerdictType.REQUIRE_HUMAN, None, tuple(results))
     if cfg["regulatory_retry_cap"]["enabled"] is False:
         check("P14", True, "NotVerified: disabled")
     if cfg["pre_debit_notice"]["enabled"] is False:

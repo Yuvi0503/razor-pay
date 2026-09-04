@@ -3,6 +3,9 @@ uvicorn[standard]>=0.30
 pydantic>=2.8
 PyYAML>=6.0
 sqlalchemy>=2.0
+psycopg[binary]>=3.2
+alembic>=1.13
+ulid-py>=1.1
 apscheduler>=3.10
 httpx>=0.27
 

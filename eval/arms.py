@@ -5,6 +5,8 @@ from backend.policy.engine import evaluate
 from sim.outcome_model import oracle_action
 from sim.scenarios import Scenario
 
+NAIVE_SCHEDULE_MINUTES = (60, 24 * 60, 72 * 60)
+
 
 def choose(arm: str, scenario: Scenario, cfg: PolicyConfig, seed: int) -> ActionType | None:
     if arm == "control":
