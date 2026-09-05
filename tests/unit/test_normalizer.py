@@ -23,7 +23,18 @@ def test_malformed_payment_payload_does_not_create_an_actionable_snapshot() -> N
 
     assert event.payment is None
     assert event.order is None
-    assert event.customer_id == "unidentified:event-malformed"
+    assert event.customer_id == "unknown_f6a4e67d8b14e80b26"
+    assert len(event.customer_id) == 26
+
+
+def test_missing_customer_uses_a_stable_database_safe_identifier() -> None:
+    payload = {"event": "payment.failed", "payload": {}}
+
+    first = normalize("evt_very_long_provider_event_identifier", payload)
+    second = normalize("evt_very_long_provider_event_identifier", payload)
+
+    assert first.customer_id == second.customer_id
+    assert len(first.customer_id) == 26
 
 
 def test_normalizer_converts_iso_timestamps_to_utc() -> None:

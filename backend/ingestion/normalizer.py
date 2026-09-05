@@ -1,5 +1,6 @@
 """Normalize the small subset of provider payloads used by recovery."""
 
+import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -42,6 +43,12 @@ def _paise(value: Any) -> int | None:
     return value
 
 
+def _anonymous_customer_id(provider_event_id: str) -> str:
+    """Return a stable internal placeholder that fits the 26-character ID column."""
+    digest = hashlib.sha256(provider_event_id.encode()).hexdigest()
+    return f"unknown_{digest[:18]}"
+
+
 def _category(payment: dict[str, Any]) -> FailureCategory:
     explicit = payment.get("failure_category")
     if isinstance(explicit, str):
@@ -68,7 +75,7 @@ def normalize(
         _string(payload.get("customer_id"))
         or _string(order.get("customer_id"))
         or _string(subscription.get("customer_id"))
-        or f"unidentified:{provider_event_id}"
+        or _anonymous_customer_id(provider_event_id)
     )
     payment_status = PaymentAttemptStatus.FAILED if event_type.endswith("failed") else PaymentAttemptStatus.CAPTURED
     payment_snapshot = None
