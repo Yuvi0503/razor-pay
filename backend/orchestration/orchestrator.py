@@ -5,12 +5,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.actions.message_renderer import render_payment_reminder
 from backend.actions.registry import REGISTRY
-from backend.db.models import HumanApproval, PaymentAttempt, RecoveryAction, RecoveryCase
+from backend.db.models import (
+    HumanApproval,
+    PaymentAttempt,
+    RecoveryAction,
+    RecoveryCase,
+    RecoveryDecision,
+)
 from backend.db.repositories.recovery import RecoveryRepository
 from backend.domain.contracts import NormalizedEvent, OrderSnapshot
 from backend.domain.enums import (
@@ -64,7 +71,7 @@ class Orchestrator:
         session: Session,
         gateway: GatewayAdapter,
         policy: PolicyConfig,
-        scheduler: object | None = None,
+        scheduler: BackgroundScheduler | None = None,
     ) -> None:
         self.session = session
         self.gateway = gateway
@@ -343,7 +350,7 @@ class Orchestrator:
         )
         self._move(case, CaseState.SCHEDULED, "ACTION_SCHEDULED", {"action_id": action_row.id})
         if self.scheduler is not None:
-            schedule_action(self.scheduler, action_row.id, scheduled_for)  # type: ignore[arg-type]
+            schedule_action(self.scheduler, action_row.id, scheduled_for)
         self.session.flush()
         if not execute_immediately:
             return PipelineResult(case.id, action_row.id, case.state, VerdictType.ALLOW, False)
@@ -401,6 +408,92 @@ class Orchestrator:
         recovered = self._verify(case, action, ok, continue_on_failure)
         self.session.flush()
         return PipelineResult(case.id, action.id, case.state, VerdictType.ALLOW, recovered)
+
+    def resume_approved(self, approval: HumanApproval, now: datetime | None = None) -> RecoveryAction | None:
+        """Revalidate and schedule the original decision after human approval.
+
+        Approval is never a shortcut around the policy gate.  The existing
+        decision is retained for auditability and is evaluated again with the
+        approval fact before any durable action is created.
+        """
+        now = now or datetime.now(UTC)
+        if approval.decision is not ApprovalDecision.APPROVED:
+            raise ValueError("only approved requests can be resumed")
+        case = self.session.get(RecoveryCase, approval.case_id)
+        decision = self.session.get(RecoveryDecision, approval.decision_id)
+        if case is None or decision is None:
+            raise LookupError("approval case or decision is missing")
+        if case.state is not CaseState.AWAITING_APPROVAL:
+            raise ValueError("case is not awaiting approval")
+
+        transition(case.state, CaseState.DECIDED)
+        case.state = CaseState.DECIDED
+        self.repo.audit("APPROVAL_GRANTED", AuditActor.HUMAN, case.id, {"approval_id": approval.id})
+        domain_case = DomainCase(
+            case_class=case.case_class,
+            amount_at_risk_paise=case.amount_at_risk_paise,
+            failure_category=case.failure_category,
+            customer_id=case.customer_id,
+            order_id=case.order_id,
+            subscription_id=case.subscription_id,
+            state=case.state,
+            contacts_used=case.contacts_used,
+            charge_attempts_used=case.charge_attempts_used,
+            opened_at=_aware(case.opened_at),
+            id=case.id,
+        )
+        delay = decision.proposed_delay_minutes or 0
+        verdict = evaluate(
+            domain_case,
+            Decision(decision.proposed_action, delay, reason_codes=tuple(decision.reason_codes or [])),
+            WorldState(
+                now=now,
+                consent=self.repo.consent(case.customer_id, ConsentChannel.EMAIL),
+                customer_contacts_7d=self.repo.contacts_last_7d(case.customer_id, now),
+                paid=self._is_paid(case),
+                chargeable=case.recoverability is not Recoverability.NOT_RECOVERABLE,
+                rail_degraded=self._rail_degraded(case, now),
+                approval_granted=True,
+            ),
+            self.policy,
+        )
+        evaluation = self.repo.policy_evaluation(
+            decision.id,
+            case.id,
+            VerdictType(verdict.verdict),
+            verdict.final_action,
+            [{"rule_id": rule.rule_id, "passed": rule.passed, "detail": rule.detail} for rule in verdict.rules_fired],
+            self.policy.config_hash,
+        )
+        self.repo.audit(
+            "APPROVAL_REVALIDATED",
+            AuditActor.RULE,
+            case.id,
+            {"verdict": verdict.verdict, "rules": [rule.rule_id for rule in verdict.rules_fired]},
+        )
+        if verdict.verdict is not VerdictType.ALLOW or verdict.final_action is None:
+            self._resolve(
+                case,
+                RecoveryResolution.STOPPED
+                if verdict.verdict is VerdictType.DENY
+                else RecoveryResolution.EXHAUSTED,
+            )
+            return None
+
+        scheduled_for = now + timedelta(minutes=delay)
+        key = hashlib.sha256(
+            f"{case.id}:{decision.id}:{verdict.final_action.value}:{scheduled_for.isoformat()}".encode()
+        ).hexdigest()
+        action = self.repo.action(
+            case_id=case.id,
+            policy_evaluation_id=evaluation.id,
+            action_type=verdict.final_action,
+            idempotency_key=key,
+            scheduled_for=scheduled_for,
+        )
+        self._move(case, CaseState.SCHEDULED, "ACTION_SCHEDULED_AFTER_APPROVAL", {"action_id": action.id})
+        self.session.flush()
+        return action
 
     def _execute_gateway(self, case: RecoveryCase, action: RecoveryAction) -> bool:
         if hasattr(self.gateway, "execute_case"):
@@ -562,7 +655,7 @@ class Orchestrator:
             self._resolve(case, RecoveryResolution.EXPIRED)
         self.repo.audit("PAYMENT_LINK_EXPIRED_COMPENSATED", AuditActor.SYSTEM, action.case_id)
 
-    def _category(self, event: NormalizedEvent):
+    def _category(self, event: NormalizedEvent) -> FailureCategory:
         if event.payment and event.payment.error_code:
             try:
                 from backend.domain.enums import FailureCategory

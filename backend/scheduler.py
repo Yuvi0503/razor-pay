@@ -14,14 +14,14 @@ def build_scheduler(database_url: str, handler: Callable[[str], None]) -> Backgr
         job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 15 * 60},
         timezone="UTC",
     )
-    scheduler._recovery_handler = handler  # type: ignore[attr-defined]
+    scheduler._recovery_handler = handler
     return scheduler
 
 
 def schedule_action(
     scheduler: BackgroundScheduler, action_id: str, run_at: datetime
 ) -> None:
-    handler = scheduler._recovery_handler  # type: ignore[attr-defined]
+    handler = scheduler._recovery_handler
     scheduler.add_job(
         handler,
         "date",

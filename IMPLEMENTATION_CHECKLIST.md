@@ -74,7 +74,7 @@ Complete these in order. Do **not** provide secrets in source control.
 - [x] Add class-C abandonment scenarios.
 - [x] Add method/issuer rail features, realistic failure histories, customer segments, support notes, and payment timing.
 - [x] Add injectable bank-outage windows and explicitly organic-paying customers.
-- [ ] Add byte-identical 1,000-case generator acceptance test and distribution report.
+- [x] Add byte-identical 1,000-case generator acceptance test and distribution report.
 - [x] Implement full `GatewayAdapter` snapshots and action calls for the simulator.
 
 ## 4. Core pipeline, persistence, and execution
@@ -107,7 +107,7 @@ Complete these in order. Do **not** provide secrets in source control.
 - [x] Generate reliability curve, recovery-by-category, and cumulative-revenue PNG charts.
 - [x] Include scenario/config hashes, seed, split, policy hash, and cost configuration in each report.
 - [x] Add reproducibility test: same seed produces bit-identical `metrics.json`.
-- [ ] Display stored metrics JSON in the dashboard; never recompute metrics inside the UI.
+- [x] Display stored metrics JSON in the dashboard; never recompute metrics inside the UI.
 
 ## 6. LLM advisor — only after evaluation is reliable
 
@@ -154,7 +154,7 @@ Complete these in order. Do **not** provide secrets in source control.
 - [x] T-15: scheduler job survives restart.
 - [x] T-16/T-17/T-18: outage deferral, opt-out stop, high-value approval scenarios.
 - [x] T-19/T-20: bit-for-bit reproducibility and zero policy violations across all arms.
-- [ ] Run `alembic upgrade head`, full pytest suite, Ruff, mypy, backend API checks, and frontend production build before each demo freeze.
+- [x] Run `alembic upgrade head`, full pytest suite, Ruff, mypy, backend API checks, and frontend production build before each demo freeze.
 
 ## 9. Final demo readiness
 
@@ -168,7 +168,7 @@ Complete these in order. Do **not** provide secrets in source control.
 
 ## Current verification snapshot
 
-- [x] Backend tests: `74 passed, 1 skipped` (Docker/PostgreSQL integration is skipped only when Docker is unavailable to the test process).
+- [x] Backend tests: `76 passed, 1 skipped` (Docker/PostgreSQL integration is skipped only when Docker is unavailable to the test process).
 - [x] Backend lint: `ruff check backend sim eval tests` passes.
 - [x] Frontend: `npm run build` passes from `frontend/`.
 - [x] Evaluation command runs: `python -m eval.run --arms all --split test --seed 42`.

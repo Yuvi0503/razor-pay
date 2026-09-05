@@ -1,12 +1,12 @@
 import hashlib
-from pathlib import Path
 
+from backend.configuration import config_path
 from sim.scenarios import Scenario
 
 
 def configuration_hash() -> str:
     """Hash the scenario configuration, not generated results."""
-    return hashlib.sha256(Path("config/sim/scenarios.yaml").read_bytes()).hexdigest()
+    return hashlib.sha256(config_path("sim/scenarios.yaml").read_bytes()).hexdigest()
 
 
 def split(scenarios: list[Scenario], name: str) -> list[Scenario]:

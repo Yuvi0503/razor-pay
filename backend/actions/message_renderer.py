@@ -1,13 +1,14 @@
 """Render compliant local-only message records; this module never sends."""
 
-from pathlib import Path
 from typing import Any
 
 import yaml
 
+from backend.configuration import config_path
+
 
 def render_payment_reminder(amount_paise: int, payment_link: str) -> dict[str, str]:
-    values: dict[str, Any] = yaml.safe_load(Path("config/templates.yaml").read_text()) or {}
+    values: dict[str, Any] = yaml.safe_load(config_path("templates.yaml").read_text()) or {}
     template = values.get("payment_reminder", {})
     amount = f"₹{amount_paise / 100:.2f}"
     body = str(template.get("body", "Your payment is pending. Reply STOP to opt out."))

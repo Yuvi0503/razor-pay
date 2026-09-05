@@ -72,9 +72,10 @@ def deterministic_generator_acceptance(
             "organic_payers": {"false": 909, "true": 91},
         }
         for field, expected_counts in expected.items():
-            if distribution[field] != expected_counts:  # type: ignore[literal-required]
+            actual = dict(distribution)[field]
+            if actual != expected_counts:
                 raise AssertionError(
-                    f"unexpected {field} distribution: {distribution[field]} != {expected_counts}"
+                    f"unexpected {field} distribution: {actual} != {expected_counts}"
                 )
 
     if report_path is not None:
@@ -86,6 +87,8 @@ def deterministic_generator_acceptance(
 def run(count: int = 500, seed: int = 42) -> dict[str, object]:
     cfg = load()
     summary: dict[str, object] = {"count": count, "seed": seed, "arms": {}}
+    arms: dict[str, object] = {}
+    summary["arms"] = arms
     for arm in ("naive", "rules"):
         session, gateway = new_run(cfg)
         gateway.seed = seed
@@ -102,7 +105,7 @@ def run(count: int = 500, seed: int = 42) -> dict[str, object]:
         }
         if arm_result["terminal_cases"] != count or violations:
             raise AssertionError(f"{arm} acceptance failed: {arm_result}")
-        summary["arms"][arm] = arm_result  # type: ignore[index]
+        arms[arm] = arm_result
     return summary
 
 

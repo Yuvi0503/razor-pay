@@ -18,6 +18,7 @@ def process_pending(
     policy: PolicyConfig,
     *,
     execute_actions: bool = False,
+    batch_size: int = 100,
 ) -> int:
     """Normalize pending events and optionally execute their first safe action.
 
@@ -25,7 +26,14 @@ def process_pending(
     normalization, policy evaluation, scheduling, and optional demo execution.
     """
     count = 0
-    for raw in session.scalars(select(RawEvent).where(RawEvent.processed_at.is_(None)).order_by(RawEvent.received_at)):
+    statement = (
+        select(RawEvent)
+        .where(RawEvent.processed_at.is_(None))
+        .order_by(RawEvent.received_at)
+        .limit(batch_size)
+        .with_for_update(skip_locked=True)
+    )
+    for raw in session.scalars(statement):
         if not isinstance(raw.payload, dict):
             raw.processed_at = raw.received_at
             continue

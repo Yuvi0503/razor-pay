@@ -1,9 +1,9 @@
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from random import Random
 
 import yaml
 
+from backend.configuration import config_path
 from backend.domain.enums import CaseClass, FailureCategory
 
 
@@ -24,7 +24,7 @@ class Scenario:
 
 def generate(count: int, seed: int) -> list[Scenario]:
     rng = Random(seed)
-    config = yaml.safe_load(Path("config/sim/scenarios.yaml").read_text()) or {}
+    config = yaml.safe_load(config_path("sim/scenarios.yaml").read_text()) or {}
     categories = [FailureCategory(value) for value in config.get("failure_categories", [
         FailureCategory.INSUFFICIENT_FUNDS.value,
         FailureCategory.TEMPORARY_BANK_ERROR.value,
@@ -61,5 +61,5 @@ def generate(count: int, seed: int) -> list[Scenario]:
     return output
 
 
-def canonical(scenarios: list[Scenario]) -> list[dict]:
+def canonical(scenarios: list[Scenario]) -> list[dict[str, object]]:
     return [asdict(item) for item in scenarios]

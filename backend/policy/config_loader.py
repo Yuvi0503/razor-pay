@@ -5,6 +5,8 @@ from typing import Any
 
 import yaml
 
+from backend.configuration import config_path
+
 
 @dataclass(frozen=True, slots=True)
 class PolicyConfig:
@@ -12,6 +14,6 @@ class PolicyConfig:
     config_hash: str
 
 
-def load(path: str = "config/policy.yaml") -> PolicyConfig:
-    raw = Path(path).read_bytes()
+def load(path: str | None = None) -> PolicyConfig:
+    raw = (config_path("policy.yaml") if path is None else Path(path)).read_bytes()
     return PolicyConfig(yaml.safe_load(raw) or {}, hashlib.sha256(raw).hexdigest())

@@ -25,10 +25,21 @@ def _time(value: Any) -> datetime | None:
         return datetime.fromtimestamp(value, tz=UTC)
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
+            return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
         except ValueError:
             return None
     return None
+
+
+def _string(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _paise(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
 
 
 def _category(payment: dict[str, Any]) -> FailureCategory:
@@ -46,57 +57,70 @@ def _category(payment: dict[str, Any]) -> FailureCategory:
 def normalize(
     provider_event_id: str, payload: dict[str, Any], received_at: datetime | None = None
 ) -> NormalizedEvent:
-    event_type = str(payload.get("event", "unknown"))
+    event_type = _string(payload.get("event")) or "unknown"
     payment = _nested(payload, "payload", "payment", "entity")
     order = _nested(payload, "payload", "order", "entity")
     subscription = _nested(payload, "payload", "subscription", "entity")
-    payment_id = payment.get("id")
-    order_id = payment.get("order_id") or order.get("id")
-    subscription_id = payment.get("subscription_id") or subscription.get("id")
+    payment_id = _string(payment.get("id"))
+    order_id = _string(payment.get("order_id")) or _string(order.get("id"))
+    subscription_id = _string(payment.get("subscription_id")) or _string(subscription.get("id"))
+    customer_id = (
+        _string(payload.get("customer_id"))
+        or _string(order.get("customer_id"))
+        or _string(subscription.get("customer_id"))
+        or f"unidentified:{provider_event_id}"
+    )
     payment_status = PaymentAttemptStatus.FAILED if event_type.endswith("failed") else PaymentAttemptStatus.CAPTURED
     payment_snapshot = None
-    if isinstance(payment_id, str):
+    payment_amount = _paise(payment.get("amount"))
+    if payment_id and payment_amount is not None and (order_id or subscription_id):
         payment_snapshot = PaymentSnapshot(
             payment_id=payment_id,
-            amount_paise=int(payment.get("amount", 0)),
+            amount_paise=payment_amount,
             status=payment_status,
-            method=payment.get("method") if isinstance(payment.get("method"), str) else None,
-            issuer_or_bank=(payment.get("bank") or payment.get("issuer")),
-            order_id=order_id if isinstance(order_id, str) else None,
-            subscription_id=subscription_id if isinstance(subscription_id, str) else None,
-            error_code=_nested(payment, "error").get("code"),
-            error_reason=_nested(payment, "error").get("reason"),
+            method=_string(payment.get("method")),
+            issuer_or_bank=_string(payment.get("bank")) or _string(payment.get("issuer")),
+            order_id=order_id,
+            subscription_id=subscription_id,
+            error_code=_string(_nested(payment, "error").get("code")),
+            error_reason=_string(_nested(payment, "error").get("reason")),
             captured_at=None if payment_status is PaymentAttemptStatus.FAILED else _time(payment.get("created_at")),
         )
     order_snapshot = None
-    if isinstance(order_id, str):
+    order_amount = _paise(order.get("amount"))
+    if order_amount is None:
+        order_amount = payment_amount
+    if order_id and order_amount is not None:
         status = OrderStatus.PAID if event_type in {"order.paid", "payment.captured"} else OrderStatus.ATTEMPTED
         order_snapshot = OrderSnapshot(
             order_id=order_id,
-            amount_paise=int(order.get("amount", payment.get("amount", 0))),
-            currency=str(order.get("currency", "INR")),
+            amount_paise=order_amount,
+            currency=_string(order.get("currency")) or "INR",
             status=status,
-            customer_id=str(payload.get("customer_id", order.get("customer_id", "customer"))),
+            customer_id=customer_id,
             created_at=_time(order.get("created_at")) or received_at or datetime.now(UTC),
         )
     subscription_snapshot = None
-    if isinstance(subscription_id, str):
+    subscription_amount = _paise(subscription.get("amount"))
+    if subscription_amount is None:
+        subscription_amount = payment_amount
+    if subscription_id and subscription_amount is not None:
         subscription_snapshot = SubscriptionSnapshot(
             subscription_id=subscription_id,
-            customer_id=str(payload.get("customer_id", subscription.get("customer_id", "customer"))),
-            amount_paise=int(subscription.get("amount", payment.get("amount", 0))),
-            status=str(subscription.get("status", "active")),
-            mandate_active=str(subscription.get("status", "active")) not in {"cancelled", "halted"},
+            customer_id=customer_id,
+            amount_paise=subscription_amount,
+            status=_string(subscription.get("status")) or "active",
+            mandate_active=(_string(subscription.get("status")) or "active") not in {"cancelled", "halted"},
             next_charge_at=_time(subscription.get("charge_at")),
         )
     return NormalizedEvent(
         provider_event_id=provider_event_id,
         event_type=event_type,
         received_at=received_at or datetime.now(UTC),
-        merchant_id=str(payload.get("merchant_id", "merchant")),
-        customer_id=str(payload.get("customer_id", (order_snapshot.customer_id if order_snapshot else "customer"))),
-        order_id=order_id if isinstance(order_id, str) else None,
-        subscription_id=subscription_id if isinstance(subscription_id, str) else None,
+        merchant_id=_string(payload.get("merchant_id")) or "merchant",
+        customer_id=customer_id,
+        order_id=order_id,
+        subscription_id=subscription_id,
         payment=payment_snapshot,
         order=order_snapshot,
         subscription=subscription_snapshot,

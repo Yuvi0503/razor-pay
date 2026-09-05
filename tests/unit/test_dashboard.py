@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 from backend.api.main import app
 from backend.db.base import Base
 from backend.db.engine import get_session
-from backend.db.models import HumanApproval
+from backend.db.models import HumanApproval, RecoveryAction
 from backend.db.repositories.recovery import RecoveryRepository
 from backend.domain.enums import (
     ActionType,
@@ -101,6 +101,11 @@ def test_dashboard_reads_cases_timeline_policy_and_approval_actions(monkeypatch)
                 json={"decision": ApprovalDecision.APPROVED.value, "note": "reviewed"},
             )
             assert approved.status_code == 200
-            assert approved.json()["case_state"] == CaseState.DECIDED.value
+            assert approved.json()["case_state"] == CaseState.SCHEDULED.value
+            action_id = approved.json()["action_id"]
+            assert action_id is not None
+            action = session.get(RecoveryAction, action_id)
+            assert action is not None
+            assert action.action_type is ActionType.CREATE_PAYMENT_LINK
         finally:
             app.dependency_overrides.pop(get_session, None)

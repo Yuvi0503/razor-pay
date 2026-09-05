@@ -24,7 +24,12 @@ class RazorpayAdapter:
     ) -> None:
         self.key_id = key_id if key_id is not None else os.getenv("RAZORPAY_KEY_ID", "")
         self.key_secret = key_secret if key_secret is not None else os.getenv("RAZORPAY_KEY_SECRET", "")
-        self.base_url = (base_url or os.getenv("RAZORPAY_BASE_URL", "https://api.razorpay.com")).rstrip("/")
+        configured_base_url = (
+            base_url
+            if base_url is not None
+            else os.getenv("RAZORPAY_BASE_URL", "https://api.razorpay.com")
+        )
+        self.base_url = configured_base_url.rstrip("/")
         self.client = client or httpx.Client(auth=(self.key_id, self.key_secret), timeout=8.0)
 
     def _require_credentials(self) -> None:

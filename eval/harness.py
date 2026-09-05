@@ -2,12 +2,13 @@
 
 import hashlib
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import yaml
 from sqlalchemy import select
 
+from backend.configuration import config_path
 from backend.db.models import (
     AuditEvent,
     OutboundMessage,
@@ -30,11 +31,11 @@ def _aware(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
-def run_arm(scenarios: list[Scenario], arm: str, seed: int, policy: PolicyConfig) -> list[dict[str, object]]:
+def run_arm(scenarios: list[Scenario], arm: str, seed: int, policy: PolicyConfig) -> list[dict[str, Any]]:
     session, gateway = new_run(policy)
     gateway.seed = seed
     advisor = LLMAdvisor.from_environment() if arm == "rules_llm" else None
-    rows: list[dict[str, object]] = []
+    rows: list[dict[str, Any]] = []
     for scenario in scenarios:
         result = run_scenario(scenario, arm, seed, policy, gateway, session, advisor)
         case = session.get(RecoveryCase, result.case_id)
@@ -86,17 +87,17 @@ def run_arm(scenarios: list[Scenario], arm: str, seed: int, policy: PolicyConfig
 
 
 def _costs() -> dict[str, int]:
-    values = yaml.safe_load(Path("config/costs.yaml").read_text()) or {}
+    values = yaml.safe_load(config_path("costs.yaml").read_text()) or {}
     return {str(key): int(value) for key, value in values.items()}
 
 
 def _cost_config_hash() -> str:
-    return hashlib.sha256(Path("config/costs.yaml").read_bytes()).hexdigest()
+    return hashlib.sha256(config_path("costs.yaml").read_bytes()).hexdigest()
 
 
-def _recovery_by_category(rows: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+def _recovery_by_category(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Summarize recovery outcomes by the expected failure category."""
-    grouped: dict[str, list[dict[str, object]]] = {}
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         grouped.setdefault(str(row["expected_category"]), []).append(row)
     return {
@@ -117,8 +118,8 @@ def _recovery_by_category(rows: list[dict[str, object]]) -> dict[str, dict[str, 
 
 
 def summarize(
-    rows: list[dict[str, object]], control_rows: list[dict[str, object]], arm: str, seed: int, policy: PolicyConfig
-) -> dict[str, object]:
+    rows: list[dict[str, Any]], control_rows: list[dict[str, Any]], arm: str, seed: int, policy: PolicyConfig
+) -> dict[str, Any]:
     count = len(rows)
     recovered = [bool(row["recovered"]) for row in rows]
     control_recovered = [bool(row["recovered"]) for row in control_rows]
@@ -193,10 +194,10 @@ def summarize(
     }
 
 
-def evaluate(scenarios: list[Scenario], arms: list[str], seed: int, policy: PolicyConfig) -> list[dict[str, object]]:
+def evaluate(scenarios: list[Scenario], arms: list[str], seed: int, policy: PolicyConfig) -> list[dict[str, Any]]:
     control = run_arm(scenarios, "control", seed, policy)
     output = [summarize(control, control, "control", seed, policy)]
-    rules_rows: list[dict[str, object]] | None = None
+    rules_rows: list[dict[str, Any]] | None = None
     for arm in arms:
         if arm == "control":
             continue

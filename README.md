@@ -5,9 +5,10 @@ Safety-first revenue-recovery decisioning for Razorpay test mode. The system dif
 ## Run the simulator evaluation
 
 ```bash
-python -m pip install -e '.[dev]'
-python -m eval.run --arms all --split test --seed 42
-pytest
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m eval.run --arms all --split test --seed 42
+.venv/bin/python -m pytest -q
 ```
 
 ## Run the API and dashboard
@@ -16,6 +17,10 @@ pytest
 docker compose up --build
 cd frontend && npm install && npm run dev
 ```
+
+Compose starts both the API/scheduler and the out-of-band webhook worker. The
+worker persists normalized cases; the API scheduler reconciles and executes
+durable recovery actions.
 
 The app is simulator-first. Live Razorpay operations are blocked until their facts are recorded in `docs/razorpay-verified.md`; never infer an endpoint, error code, or regulatory retry rule.
 

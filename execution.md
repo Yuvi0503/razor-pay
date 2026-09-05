@@ -472,7 +472,7 @@ The current working tree has been verified with the project virtual environment:
 
 ```text
 python -m pytest -q
-74 passed, 1 skipped
+76 passed, 1 skipped
 
 ruff check backend sim eval tests
 All checks passed
@@ -510,7 +510,7 @@ Five evaluation arms completed and persisted category, safety, and deterministic
 
 The one skipped test is the Docker Compose PostgreSQL migration test because Docker is unavailable
 in the current environment. It should be run on a machine with Docker before a production/demo
-freeze. Strict mypy is not yet clean and remains a hardening task before release freeze.
+freeze. Strict mypy is clean; rerun it together with the other release checks before every freeze.
 
 ## 16. How to explain the system in an interview
 

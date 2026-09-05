@@ -5,6 +5,7 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -24,6 +25,8 @@ from backend.db.models import (
 )
 from backend.domain.enums import ApprovalDecision, AuditActor, CaseState, RecoveryResolution
 from backend.domain.state_machine import transition
+from backend.gateway.razorpay_adapter import RazorpayAdapter
+from backend.orchestration.orchestrator import Orchestrator
 from backend.policy.config_loader import load
 
 router = APIRouter(prefix="/api")
@@ -106,20 +109,25 @@ def case_detail(case_id: str, session: Session = Depends(get_session)) -> dict[s
     case = session.get(RecoveryCase, case_id)
     if case is None:
         raise HTTPException(404, "case not found")
-    timeline: list[dict[str, object]] = []
-    for item in session.scalars(select(AuditEvent).where(AuditEvent.case_id == case_id)):
-        timeline.append({"at": _date(item.occurred_at), "kind": "audit", "title": item.event_type, "actor": _value(item.actor), "payload": item.payload})
-    for item in session.scalars(select(RecoveryDecision).where(RecoveryDecision.case_id == case_id)):
-        timeline.append({"at": _date(item.created_at), "kind": "decision", "title": f"Proposed {_value(item.proposed_action)}", "actor": _value(item.source), "payload": {"delay_minutes": item.proposed_delay_minutes, "reason_codes": item.reason_codes, "llm_fallback_reason": item.llm_fallback_reason}})
-    for item in session.scalars(select(PolicyEvaluation).where(PolicyEvaluation.case_id == case_id)):
-        timeline.append({"at": _date(item.evaluated_at), "kind": "policy", "title": f"Policy {_value(item.verdict)}", "actor": "RULE", "payload": {"final_action": _value(item.final_action), "policy_config_hash": item.policy_config_hash, "rules_fired": item.rules_fired}})
-    for item in session.scalars(select(RecoveryAction).where(RecoveryAction.case_id == case_id)):
-        timeline.append({"at": _date(item.created_at), "kind": "action", "title": f"Action {_value(item.action_type)}", "actor": "SYSTEM", "payload": {"state": _value(item.state), "scheduled_for": _date(item.scheduled_for), "result": item.result, "skip_reason": item.skip_reason}})
-    for item in session.scalars(select(PaymentAttempt).where((PaymentAttempt.order_id == case.order_id) if case.order_id else (PaymentAttempt.subscription_id == case.subscription_id))):
-        timeline.append({"at": _date(item.occurred_at), "kind": "payment", "title": f"Payment {_value(item.status)}", "actor": _value(item.initiated_by), "payload": {"provider_payment_id": item.provider_payment_id, "amount_paise": item.amount_paise, "failure_category": _value(item.failure_category)}})
-    for item in session.scalars(select(OutboundMessage).where(OutboundMessage.case_id == case_id)):
-        timeline.append({"at": _date(item.created_at), "kind": "message", "title": f"Rendered {item.template_id}", "actor": _value(item.generated_by), "payload": {"channel": _value(item.channel), "subject": item.rendered_subject, "body": item.rendered_body, "delivery": "not sent"}})
-    timeline.sort(key=lambda item: item["at"] or "")
+    timeline: list[dict[str, Any]] = []
+    for audit in session.scalars(select(AuditEvent).where(AuditEvent.case_id == case_id)):
+        timeline.append({"at": _date(audit.occurred_at), "kind": "audit", "title": audit.event_type, "actor": _value(audit.actor), "payload": audit.payload})
+    for decision in session.scalars(select(RecoveryDecision).where(RecoveryDecision.case_id == case_id)):
+        timeline.append({"at": _date(decision.created_at), "kind": "decision", "title": f"Proposed {_value(decision.proposed_action)}", "actor": _value(decision.source), "payload": {"delay_minutes": decision.proposed_delay_minutes, "reason_codes": decision.reason_codes, "llm_fallback_reason": decision.llm_fallback_reason}})
+    for evaluation in session.scalars(select(PolicyEvaluation).where(PolicyEvaluation.case_id == case_id)):
+        timeline.append({"at": _date(evaluation.evaluated_at), "kind": "policy", "title": f"Policy {_value(evaluation.verdict)}", "actor": "RULE", "payload": {"final_action": _value(evaluation.final_action), "policy_config_hash": evaluation.policy_config_hash, "rules_fired": evaluation.rules_fired}})
+    for action in session.scalars(select(RecoveryAction).where(RecoveryAction.case_id == case_id)):
+        timeline.append({"at": _date(action.created_at), "kind": "action", "title": f"Action {_value(action.action_type)}", "actor": "SYSTEM", "payload": {"state": _value(action.state), "scheduled_for": _date(action.scheduled_for), "result": action.result, "skip_reason": action.skip_reason}})
+    payment_statement = select(PaymentAttempt).where(
+        (PaymentAttempt.order_id == case.order_id)
+        if case.order_id
+        else (PaymentAttempt.subscription_id == case.subscription_id)
+    )
+    for payment in session.scalars(payment_statement):
+        timeline.append({"at": _date(payment.occurred_at), "kind": "payment", "title": f"Payment {_value(payment.status)}", "actor": _value(payment.initiated_by), "payload": {"provider_payment_id": payment.provider_payment_id, "amount_paise": payment.amount_paise, "failure_category": _value(payment.failure_category)}})
+    for message in session.scalars(select(OutboundMessage).where(OutboundMessage.case_id == case_id)):
+        timeline.append({"at": _date(message.created_at), "kind": "message", "title": f"Rendered {message.template_id}", "actor": _value(message.generated_by), "payload": {"channel": _value(message.channel), "subject": message.rendered_subject, "body": message.rendered_body, "delivery": "not sent"}})
+    timeline.sort(key=lambda entry: str(entry.get("at") or ""))
     return {"case": _case_summary(session, case), "timeline": timeline}
 
 
@@ -166,20 +174,35 @@ def update_approval(
     case = session.get(RecoveryCase, approval.case_id)
     if case is None or case.state is not CaseState.AWAITING_APPROVAL:
         raise HTTPException(409, "case is no longer awaiting approval")
+    now = datetime.now(UTC)
     approval.decision = update.decision
     approval.note = update.note
-    approval.decided_at = datetime.now(UTC)
+    approval.decided_at = now
+    action_id: str | None = None
     if update.decision is ApprovalDecision.REJECTED:
         transition(case.state, CaseState.STOPPED)
         case.state = CaseState.STOPPED
         case.resolution = RecoveryResolution.STOPPED
-        case.resolved_at = datetime.now(UTC)
+        case.resolved_at = now
+        session.add(
+            AuditEvent(
+                case_id=case.id,
+                event_type=f"APPROVAL_{update.decision.value}",
+                actor=AuditActor.HUMAN,
+                payload={"note": update.note},
+            )
+        )
     else:
-        transition(case.state, CaseState.DECIDED)
-        case.state = CaseState.DECIDED
-    session.add(AuditEvent(case_id=case.id, event_type=f"APPROVAL_{update.decision.value}", actor=AuditActor.HUMAN, payload={"note": update.note}))
+        action = Orchestrator(session, RazorpayAdapter(), load()).resume_approved(approval, now)
+        action_id = action.id if action else None
     session.commit()
-    return {"approval_id": approval.id, "decision": update.decision.value, "case_id": case.id, "case_state": case.state.value}
+    return {
+        "approval_id": approval.id,
+        "decision": update.decision.value,
+        "case_id": case.id,
+        "case_state": case.state.value,
+        "action_id": action_id,
+    }
 
 
 @router.get("/policy")
@@ -191,9 +214,8 @@ def policy() -> dict[str, object]:
 @router.get("/evaluation")
 def evaluation() -> dict[str, object]:
     configured_path = os.getenv("EVAL_REPORT_PATH", "").strip()
-    if configured_path:
-        report = Path(configured_path)
-    else:
+    report: Path | None = Path(configured_path) if configured_path else None
+    if report is None:
         reports = sorted(Path("eval/reports").glob("*/metrics.json"))
         report = reports[-1] if reports else None
     if report is None or not report.exists():

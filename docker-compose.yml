@@ -16,6 +16,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  worker:
+    build: .
+    command: sh -c "alembic upgrade head && python -m backend.ingestion.worker --poll-seconds 2"
+    environment:
+      DATABASE_URL: postgresql+psycopg://recovery:recovery@db:5432/recovery
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_MERCHANT_ID: ${RAZORPAY_MERCHANT_ID:-merchant}
+    volumes: [".:/app"]
+    depends_on:
+      db:
+        condition: service_healthy
   db:
     image: postgres:15
     environment:

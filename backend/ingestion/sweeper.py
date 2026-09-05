@@ -4,14 +4,21 @@ import argparse
 import os
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.orm import Session
+
 from backend.db.engine import get_session
+from backend.gateway.base import GatewayAdapter
 from backend.gateway.razorpay_adapter import RazorpayAdapter
 from backend.orchestration.orchestrator import Orchestrator
-from backend.policy.config_loader import load
+from backend.policy.config_loader import PolicyConfig, load
 
 
 def sweep_stale_orders(
-    session, gateway, policy, merchant_id: str, before: datetime
+    session: Session,
+    gateway: GatewayAdapter,
+    policy: PolicyConfig,
+    merchant_id: str,
+    before: datetime,
 ) -> int:
     """Open one assisted case for each verified stale non-paid order."""
     orchestrator = Orchestrator(session, gateway, policy)

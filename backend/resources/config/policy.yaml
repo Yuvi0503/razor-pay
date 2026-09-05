@@ -1,0 +1,34 @@
+version: 1
+kill_switch: false
+approved_contact_channels: [EMAIL]
+approval_queue_mode: MANUAL_UI
+payment_link:
+  expiry_hours: 24
+  notify_email: false
+  notify_sms: false
+  reminder_enable: false
+max_contacts_per_case: 3
+max_contacts_per_customer_7d: 5
+max_charge_attempts: 3
+min_gap_minutes: 360
+communication_window_ist: ["09:00", "20:00"]
+auto_ceiling_paise: 1000000
+max_case_age_hours: 168
+outage_window_minutes: 15
+outage_min_attempts: 20
+outage_failure_multiplier: 2.5
+outage_cooldown_minutes: 30
+verification_poll_count: 5
+misfire_grace_minutes: 15
+attribution_window_hours: 72
+regulatory_retry_cap:
+  enabled: false
+pre_debit_notice:
+  enabled: false
+llm:
+  enabled: false
+  provider: anthropic
+  model: claude-3-5-haiku-latest
+  prompt_version: v1
+  timeout_seconds: 8
+  cache_path: ":memory:"

@@ -15,11 +15,11 @@ dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.11"]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = [
-  "backend", "backend.api", "backend.actions", "backend.db", "backend.db.repositories",
-  "backend.domain", "backend.policy", "sim", "eval"
-]
+[tool.setuptools.packages.find]
+include = ["backend*", "sim*", "eval*"]
+
+[tool.setuptools.package-data]
+backend = ["resources/config/*.yaml", "resources/config/sim/*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
