@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         scheduler.shutdown(wait=False)
 
-app = FastAPI(title="Revenue Recovery", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="RecoverGuard", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

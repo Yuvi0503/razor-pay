@@ -1,16 +1,18 @@
-# Demo Runbook
+# RecoverGuard Demo Runbook
 
 ## Start
 
-1. Copy `.env.example` to `.env` and fill in local Test Mode credentials and the webhook secret.
+1. Copy `.env.example` to `.env` and set a local webhook secret. Add Razorpay Test Mode credentials only if you are configuring a real Test Mode delivery.
 2. Start the database and API:
 
    ```bash
    docker compose up --build
    ```
 
-3. Use the reachable HTTPS tunnel URL ending in `/webhooks/razorpay` in the Razorpay Test Mode
+3. Optional for the local fixture: no public tunnel is required. For a real delivery, use the reachable HTTPS tunnel URL ending in `/webhooks/razorpay` in the Razorpay Test Mode
    webhook configuration.
+
+On Windows, use `Copy-Item .env.example .env`; the remaining Compose and npm commands work in PowerShell.
 
 ## What the current demo proves
 
@@ -29,8 +31,29 @@ implemented. Messages are rendered into the database and are not sent. Simulator
 modelled results, not production recovery claims. Regulatory retry-cap and pre-debit-notice rules
 remain disabled until their official requirements are verified and recorded.
 
-## Suggested next scripted flow
+## Reliable scripted flow
 
-Use one failed one-off payment to show classification, payment-link/reminder planning, and the
-class restriction against mandate retry. Use a separate mandate case to show scheduling and the
-revalidation path that cancels a retry after a manual payment. Keep all live actions in Test Mode.
+Generate an evaluation report, open the dashboard, and then send a signed failure event from the
+repository root. The script is cross-platform and uses the same `RAZORPAY_WEBHOOK_SECRET` as the API.
+
+```bash
+python scripts/send_demo_failure.py
+```
+
+When running inside the Compose API container instead of a host virtual environment:
+
+```bash
+docker compose exec -T api python scripts/send_demo_failure.py
+```
+
+Wait 5–10 seconds for the worker, then refresh the dashboard. The expected result is one open
+`B_ONEOFF` case with `₹1.00` at risk. To demonstrate duplicate protection, reuse the same provider
+event ID:
+
+```bash
+python scripts/send_demo_failure.py --event-id evt_demo_duplicate_001
+python scripts/send_demo_failure.py --event-id evt_demo_duplicate_001
+```
+
+Use a separate mandate-shaped case only if you want to show the classification boundary and its
+restricted retry policy. Keep all live actions in Test Mode.
